@@ -1,1 +1,1 @@
-test.todo('throws invalid number', async () => {})
+test.todo('throws invalid number')
