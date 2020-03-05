@@ -7,8 +7,6 @@ inputs:
   conflictLabel:
     description: 'Tag used for PRs with conflicts'
     default: 'conflicts'
-  maxLimitPRs:
-    description: 'Max number of PRs for scan (max 200)'
 runs:
   using: 'node12'
   main: 'dist/index.js'

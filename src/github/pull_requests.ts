@@ -1,7 +1,6 @@
 import {Octokit} from '@octokit/rest'
 import {GithubContext} from './contexts'
 import {debug, info} from '../logger'
-import {Inputs} from '../inputs'
 import {MAX_NUMBER_PRS_PER_PAGE} from '../constants'
 import {inspect} from 'util'
 
@@ -15,23 +14,24 @@ export interface GithubRequest {
   repo: string
 }
 
-const listPRs = async (
-  {octokit, owner, repo}: GithubRequest,
-  page: number
-): Promise<Octokit.Response<Octokit.PullsListResponse>> => {
+const listPRs = async ({
+  octokit,
+  owner,
+  repo
+}: GithubRequest): Promise<Octokit.PullsListResponseItem[]> => {
   try {
-    debug(`Request page ${page} of PRs...`)
-    const pulls = await octokit.pulls.list({
+    debug(`Request list PRs...`)
+    const pulls = await octokit.paginate('GET /repos/:owner/:repo/pulls', {
       repo,
       owner,
       per_page: MAX_NUMBER_PRS_PER_PAGE,
-      state: 'open',
-      page
+      state: 'open'
     })
-    debug(`Finish request page ${page} of PRs with size: ${pulls.data.length}`)
-    return pulls
+    debug(JSON.stringify(pulls))
+    debug(`Finish request PRs with size: ${pulls.length}`)
+    return pulls as Octokit.PullsListResponseItem[]
   } catch (err) {
-    throw new Error(`Fail to list PRs page ${page} because ${inspect(err)}`)
+    throw new Error(`Fail to list PRs page because ${inspect(err)}`)
   }
 }
 
@@ -56,38 +56,26 @@ const getPR = async (
 }
 
 const getAllOpenPRs = async (
-  githubContext: GithubContext,
-  maxLimitPRs: number
+  githubContext: GithubContext
 ): Promise<GithubPR[]> => {
   const requestData = {
     octokit: githubContext.octokit,
     repo: githubContext.context.repo.repo,
     owner: githubContext.context.repo.owner
   }
-  const requestsBatches = Math.ceil(maxLimitPRs / MAX_NUMBER_PRS_PER_PAGE)
-  const requests = []
+  const openPRs = await listPRs(requestData)
 
-  debug(`Using ${requestsBatches} requests batchs for get all PRs...`)
-
-  for (let i = 0; i < requestsBatches; i++) {
-    requests.push(listPRs(requestData, i))
-  }
-
-  return Promise.all(requests).then(requestsData => {
-    const pullRequests = requestsData.flatMap(request => request.data)
-    const pullRequestsData = pullRequests.map(pullRequest =>
-      getPR(requestData, pullRequest.number)
-    )
-    return Promise.all(pullRequestsData)
-  })
+  const pullRequestData = openPRs.map(pullRequest =>
+    getPR(requestData, pullRequest.number)
+  )
+  return Promise.all(pullRequestData)
 }
 
 export async function getOpenPullRequests(
-  githubContext: GithubContext,
-  {maxLimitPRs}: Inputs
+  githubContext: GithubContext
 ): Promise<GithubPR[]> {
   info(`Fetching open PRs...`)
-  const openPRs = await getAllOpenPRs(githubContext, maxLimitPRs)
+  const openPRs = await getAllOpenPRs(githubContext)
   info(`Found ${openPRs.length} open PRs`)
   return openPRs
 }

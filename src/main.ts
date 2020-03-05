@@ -7,7 +7,7 @@ async function run(): Promise<void> {
   try {
     const inputs = getInputs()
     const githubContext = getGithubContext(inputs)
-    await getOpenPullRequests(githubContext, inputs)
+    await getOpenPullRequests(githubContext)
   } catch (err) {
     error(err)
   }
