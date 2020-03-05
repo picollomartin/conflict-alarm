@@ -2,8 +2,8 @@
   "name": "conflict-alarm",
   "version": "0.0.1",
   "private": true,
-  "description": "Conflict alarm action",
-  "main": "lib/main.js",
+  "description": "Conflict alarm github action",
+  "main": "src/main.ts",
   "scripts": {
     "build": "tsc",
     "format": "prettier --write **/*.ts",
