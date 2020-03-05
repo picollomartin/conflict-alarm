@@ -27,7 +27,6 @@ const listPRs = async ({
       per_page: MAX_NUMBER_PRS_PER_PAGE,
       state: 'open'
     })
-    debug(JSON.stringify(pulls))
     debug(`Finish request PRs with size: ${pulls.length}`)
     return pulls as Octokit.PullsListResponseItem[]
   } catch (err) {
