@@ -67,6 +67,8 @@ const getAllOpenPRs = async (
   const requestsBatches = Math.ceil(maxLimitPRs / MAX_NUMBER_PRS_PER_PAGE)
   const requests = []
 
+  debug(`Using ${requestsBatches} requests batchs for get all PRs...`)
+
   for (let i = 0; i < requestsBatches; i++) {
     requests.push(listPRs(requestData, i))
   }
