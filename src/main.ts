@@ -1,18 +1,15 @@
-import * as core from '@actions/core'
-import {wait} from './wait'
+import {getInputs} from './inputs'
+import {error} from './logger'
+import getGithubContext from './github/contexts'
+import {getOpenPullRequests} from './github/pull_requests'
 
 async function run(): Promise<void> {
   try {
-    const ms: string = core.getInput('milliseconds')
-    core.debug(`Waiting ${ms} milliseconds ...`)
-
-    core.debug(new Date().toTimeString())
-    await wait(parseInt(ms, 10))
-    core.debug(new Date().toTimeString())
-
-    core.setOutput('time', new Date().toTimeString())
-  } catch (error) {
-    core.setFailed(error.message)
+    const inputs = getInputs()
+    const githubContext = getGithubContext(inputs)
+    await getOpenPullRequests(githubContext, inputs)
+  } catch (err) {
+    error(err)
   }
 }
 
