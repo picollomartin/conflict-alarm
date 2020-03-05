@@ -1993,21 +1993,21 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const logger_1 = __webpack_require__(906);
 const constants_1 = __webpack_require__(211);
 const util_1 = __webpack_require__(669);
-const listPRs = ({ octokit, owner, repo }, page) => __awaiter(void 0, void 0, void 0, function* () {
+const listPRs = ({ octokit, owner, repo }) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        logger_1.debug(`Request page ${page} of PRs...`);
-        const pulls = yield octokit.pulls.list({
+        logger_1.debug(`Request list PRs...`);
+        const pulls = yield octokit.paginate('GET /repos/:owner/:repo/pulls', {
             repo,
             owner,
             per_page: constants_1.MAX_NUMBER_PRS_PER_PAGE,
-            state: 'open',
-            page
+            state: 'open'
         });
-        logger_1.debug(`Finish request page ${page} of PRs with size: ${pulls.data.length}`);
+        logger_1.debug(JSON.stringify(pulls));
+        logger_1.debug(`Finish request PRs with size: ${pulls.length}`);
         return pulls;
     }
     catch (err) {
-        throw new Error(`Fail to list PRs page ${page} because ${util_1.inspect(err)}`);
+        throw new Error(`Fail to list PRs page because ${util_1.inspect(err)}`);
     }
 });
 const getPR = ({ octokit, owner, repo }, number) => __awaiter(void 0, void 0, void 0, function* () {
@@ -2025,27 +2025,20 @@ const getPR = ({ octokit, owner, repo }, number) => __awaiter(void 0, void 0, vo
         throw new Error(`Fail to get PR ${number} because ${util_1.inspect(err)}`);
     }
 });
-const getAllOpenPRs = (githubContext, maxLimitPRs) => __awaiter(void 0, void 0, void 0, function* () {
+const getAllOpenPRs = (githubContext) => __awaiter(void 0, void 0, void 0, function* () {
     const requestData = {
         octokit: githubContext.octokit,
         repo: githubContext.context.repo.repo,
         owner: githubContext.context.repo.owner
     };
-    const requestsBatches = Math.ceil(maxLimitPRs / constants_1.MAX_NUMBER_PRS_PER_PAGE);
-    const requests = [];
-    for (let i = 0; i < requestsBatches; i++) {
-        requests.push(listPRs(requestData, i));
-    }
-    return Promise.all(requests).then(requestsData => {
-        const pullRequests = requestsData.flatMap(request => request.data);
-        const pullRequestsData = pullRequests.map(pullRequest => getPR(requestData, pullRequest.number));
-        return Promise.all(pullRequestsData);
-    });
+    const openPRs = yield listPRs(requestData);
+    const pullRequestData = openPRs.map(pullRequest => getPR(requestData, pullRequest.number));
+    return Promise.all(pullRequestData);
 });
-function getOpenPullRequests(githubContext, { maxLimitPRs }) {
+function getOpenPullRequests(githubContext) {
     return __awaiter(this, void 0, void 0, function* () {
-        logger_1.info(`Fetching Open PRs...`);
-        const openPRs = yield getAllOpenPRs(githubContext, maxLimitPRs);
+        logger_1.info(`Fetching open PRs...`);
+        const openPRs = yield getAllOpenPRs(githubContext);
         logger_1.info(`Found ${openPRs.length} open PRs`);
         return openPRs;
     });
@@ -3039,7 +3032,7 @@ function run() {
         try {
             const inputs = inputs_1.getInputs();
             const githubContext = contexts_1.default(inputs);
-            yield pull_requests_1.getOpenPullRequests(githubContext, inputs);
+            yield pull_requests_1.getOpenPullRequests(githubContext);
         }
         catch (err) {
             logger_1.error(err);
@@ -3416,7 +3409,7 @@ module.exports.MaxBufferError = MaxBufferError;
 
 module.exports = paginatePlugin;
 
-const { paginateRest } = __webpack_require__(299);
+const { paginateRest } = __webpack_require__(991);
 
 function paginatePlugin(octokit) {
   Object.assign(octokit, paginateRest(octokit));
@@ -3612,7 +3605,6 @@ function checkMode (stat, options) {
 
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.DEFAULT_CONFLICT_LABEL = 'conflicts';
-exports.MAX_LIMIT_PRS = 200;
 exports.MAX_NUMBER_PRS_PER_PAGE = 100;
 
 
@@ -4104,156 +4096,6 @@ module.exports = class HttpError extends Error {
     this.headers = headers
   }
 }
-
-
-/***/ }),
-
-/***/ 299:
-/***/ (function(__unusedmodule, exports) {
-
-"use strict";
-
-
-Object.defineProperty(exports, '__esModule', { value: true });
-
-const VERSION = "1.1.2";
-
-/**
- * Some “list” response that can be paginated have a different response structure
- *
- * They have a `total_count` key in the response (search also has `incomplete_results`,
- * /installation/repositories also has `repository_selection`), as well as a key with
- * the list of the items which name varies from endpoint to endpoint:
- *
- * - https://developer.github.com/v3/search/#example (key `items`)
- * - https://developer.github.com/v3/checks/runs/#response-3 (key: `check_runs`)
- * - https://developer.github.com/v3/checks/suites/#response-1 (key: `check_suites`)
- * - https://developer.github.com/v3/apps/installations/#list-repositories (key: `repositories`)
- * - https://developer.github.com/v3/apps/installations/#list-installations-for-a-user (key `installations`)
- *
- * Octokit normalizes these responses so that paginated results are always returned following
- * the same structure. One challenge is that if the list response has only one page, no Link
- * header is provided, so this header alone is not sufficient to check wether a response is
- * paginated or not. For the exceptions with the namespace, a fallback check for the route
- * paths has to be added in order to normalize the response. We cannot check for the total_count
- * property because it also exists in the response of Get the combined status for a specific ref.
- */
-const REGEX = [/^\/search\//, /^\/repos\/[^/]+\/[^/]+\/commits\/[^/]+\/(check-runs|check-suites)([^/]|$)/, /^\/installation\/repositories([^/]|$)/, /^\/user\/installations([^/]|$)/, /^\/repos\/[^/]+\/[^/]+\/actions\/secrets([^/]|$)/, /^\/repos\/[^/]+\/[^/]+\/actions\/workflows(\/[^/]+\/runs)?([^/]|$)/, /^\/repos\/[^/]+\/[^/]+\/actions\/runs(\/[^/]+\/(artifacts|jobs))?([^/]|$)/];
-function normalizePaginatedListResponse(octokit, url, response) {
-  const path = url.replace(octokit.request.endpoint.DEFAULTS.baseUrl, "");
-  const responseNeedsNormalization = REGEX.find(regex => regex.test(path));
-  if (!responseNeedsNormalization) return; // keep the additional properties intact as there is currently no other way
-  // to retrieve the same information.
-
-  const incompleteResults = response.data.incomplete_results;
-  const repositorySelection = response.data.repository_selection;
-  const totalCount = response.data.total_count;
-  delete response.data.incomplete_results;
-  delete response.data.repository_selection;
-  delete response.data.total_count;
-  const namespaceKey = Object.keys(response.data)[0];
-  const data = response.data[namespaceKey];
-  response.data = data;
-
-  if (typeof incompleteResults !== "undefined") {
-    response.data.incomplete_results = incompleteResults;
-  }
-
-  if (typeof repositorySelection !== "undefined") {
-    response.data.repository_selection = repositorySelection;
-  }
-
-  response.data.total_count = totalCount;
-  Object.defineProperty(response.data, namespaceKey, {
-    get() {
-      octokit.log.warn(`[@octokit/paginate-rest] "response.data.${namespaceKey}" is deprecated for "GET ${path}". Get the results directly from "response.data"`);
-      return Array.from(data);
-    }
-
-  });
-}
-
-function iterator(octokit, route, parameters) {
-  const options = octokit.request.endpoint(route, parameters);
-  const method = options.method;
-  const headers = options.headers;
-  let url = options.url;
-  return {
-    [Symbol.asyncIterator]: () => ({
-      next() {
-        if (!url) {
-          return Promise.resolve({
-            done: true
-          });
-        }
-
-        return octokit.request({
-          method,
-          url,
-          headers
-        }).then(response => {
-          normalizePaginatedListResponse(octokit, url, response); // `response.headers.link` format:
-          // '<https://api.github.com/users/aseemk/followers?page=2>; rel="next", <https://api.github.com/users/aseemk/followers?page=2>; rel="last"'
-          // sets `url` to undefined if "next" URL is not present or `link` header is not set
-
-          url = ((response.headers.link || "").match(/<([^>]+)>;\s*rel="next"/) || [])[1];
-          return {
-            value: response
-          };
-        });
-      }
-
-    })
-  };
-}
-
-function paginate(octokit, route, parameters, mapFn) {
-  if (typeof parameters === "function") {
-    mapFn = parameters;
-    parameters = undefined;
-  }
-
-  return gather(octokit, [], iterator(octokit, route, parameters)[Symbol.asyncIterator](), mapFn);
-}
-
-function gather(octokit, results, iterator, mapFn) {
-  return iterator.next().then(result => {
-    if (result.done) {
-      return results;
-    }
-
-    let earlyExit = false;
-
-    function done() {
-      earlyExit = true;
-    }
-
-    results = results.concat(mapFn ? mapFn(result.value, done) : result.value.data);
-
-    if (earlyExit) {
-      return results;
-    }
-
-    return gather(octokit, results, iterator, mapFn);
-  });
-}
-
-/**
- * @param octokit Octokit instance
- * @param options Options passed to Octokit constructor
- */
-
-function paginateRest(octokit) {
-  return {
-    paginate: Object.assign(paginate.bind(null, octokit), {
-      iterator: iterator.bind(null, octokit)
-    })
-  };
-}
-paginateRest.VERSION = VERSION;
-
-exports.paginateRest = paginateRest;
-//# sourceMappingURL=index.js.map
 
 
 /***/ }),
@@ -8691,9 +8533,8 @@ function getInputs() {
     logger_1.debug('Attempt to get user inputs...');
     const githubToken = core.getInput('githubToken', { required: true });
     const conflictLabel = core.getInput('conflictLabel') || constants_1.DEFAULT_CONFLICT_LABEL;
-    const maxLimitPRs = Math.max(Number(core.getInput('maxLimitPRs')) || 0, constants_1.MAX_LIMIT_PRS);
-    logger_1.info(`Inputs for action: label -> [${conflictLabel}], maxLimitPRs -> [${maxLimitPRs}]`);
-    return { githubToken, conflictLabel, maxLimitPRs };
+    logger_1.info(`Inputs for action: label -> [${conflictLabel}]`);
+    return { githubToken, conflictLabel };
 }
 exports.getInputs = getInputs;
 
@@ -25473,6 +25314,156 @@ function onceStrict (fn) {
   f.called = false
   return f
 }
+
+
+/***/ }),
+
+/***/ 991:
+/***/ (function(__unusedmodule, exports) {
+
+"use strict";
+
+
+Object.defineProperty(exports, '__esModule', { value: true });
+
+const VERSION = "1.1.2";
+
+/**
+ * Some “list” response that can be paginated have a different response structure
+ *
+ * They have a `total_count` key in the response (search also has `incomplete_results`,
+ * /installation/repositories also has `repository_selection`), as well as a key with
+ * the list of the items which name varies from endpoint to endpoint:
+ *
+ * - https://developer.github.com/v3/search/#example (key `items`)
+ * - https://developer.github.com/v3/checks/runs/#response-3 (key: `check_runs`)
+ * - https://developer.github.com/v3/checks/suites/#response-1 (key: `check_suites`)
+ * - https://developer.github.com/v3/apps/installations/#list-repositories (key: `repositories`)
+ * - https://developer.github.com/v3/apps/installations/#list-installations-for-a-user (key `installations`)
+ *
+ * Octokit normalizes these responses so that paginated results are always returned following
+ * the same structure. One challenge is that if the list response has only one page, no Link
+ * header is provided, so this header alone is not sufficient to check wether a response is
+ * paginated or not. For the exceptions with the namespace, a fallback check for the route
+ * paths has to be added in order to normalize the response. We cannot check for the total_count
+ * property because it also exists in the response of Get the combined status for a specific ref.
+ */
+const REGEX = [/^\/search\//, /^\/repos\/[^/]+\/[^/]+\/commits\/[^/]+\/(check-runs|check-suites)([^/]|$)/, /^\/installation\/repositories([^/]|$)/, /^\/user\/installations([^/]|$)/, /^\/repos\/[^/]+\/[^/]+\/actions\/secrets([^/]|$)/, /^\/repos\/[^/]+\/[^/]+\/actions\/workflows(\/[^/]+\/runs)?([^/]|$)/, /^\/repos\/[^/]+\/[^/]+\/actions\/runs(\/[^/]+\/(artifacts|jobs))?([^/]|$)/];
+function normalizePaginatedListResponse(octokit, url, response) {
+  const path = url.replace(octokit.request.endpoint.DEFAULTS.baseUrl, "");
+  const responseNeedsNormalization = REGEX.find(regex => regex.test(path));
+  if (!responseNeedsNormalization) return; // keep the additional properties intact as there is currently no other way
+  // to retrieve the same information.
+
+  const incompleteResults = response.data.incomplete_results;
+  const repositorySelection = response.data.repository_selection;
+  const totalCount = response.data.total_count;
+  delete response.data.incomplete_results;
+  delete response.data.repository_selection;
+  delete response.data.total_count;
+  const namespaceKey = Object.keys(response.data)[0];
+  const data = response.data[namespaceKey];
+  response.data = data;
+
+  if (typeof incompleteResults !== "undefined") {
+    response.data.incomplete_results = incompleteResults;
+  }
+
+  if (typeof repositorySelection !== "undefined") {
+    response.data.repository_selection = repositorySelection;
+  }
+
+  response.data.total_count = totalCount;
+  Object.defineProperty(response.data, namespaceKey, {
+    get() {
+      octokit.log.warn(`[@octokit/paginate-rest] "response.data.${namespaceKey}" is deprecated for "GET ${path}". Get the results directly from "response.data"`);
+      return Array.from(data);
+    }
+
+  });
+}
+
+function iterator(octokit, route, parameters) {
+  const options = octokit.request.endpoint(route, parameters);
+  const method = options.method;
+  const headers = options.headers;
+  let url = options.url;
+  return {
+    [Symbol.asyncIterator]: () => ({
+      next() {
+        if (!url) {
+          return Promise.resolve({
+            done: true
+          });
+        }
+
+        return octokit.request({
+          method,
+          url,
+          headers
+        }).then(response => {
+          normalizePaginatedListResponse(octokit, url, response); // `response.headers.link` format:
+          // '<https://api.github.com/users/aseemk/followers?page=2>; rel="next", <https://api.github.com/users/aseemk/followers?page=2>; rel="last"'
+          // sets `url` to undefined if "next" URL is not present or `link` header is not set
+
+          url = ((response.headers.link || "").match(/<([^>]+)>;\s*rel="next"/) || [])[1];
+          return {
+            value: response
+          };
+        });
+      }
+
+    })
+  };
+}
+
+function paginate(octokit, route, parameters, mapFn) {
+  if (typeof parameters === "function") {
+    mapFn = parameters;
+    parameters = undefined;
+  }
+
+  return gather(octokit, [], iterator(octokit, route, parameters)[Symbol.asyncIterator](), mapFn);
+}
+
+function gather(octokit, results, iterator, mapFn) {
+  return iterator.next().then(result => {
+    if (result.done) {
+      return results;
+    }
+
+    let earlyExit = false;
+
+    function done() {
+      earlyExit = true;
+    }
+
+    results = results.concat(mapFn ? mapFn(result.value, done) : result.value.data);
+
+    if (earlyExit) {
+      return results;
+    }
+
+    return gather(octokit, results, iterator, mapFn);
+  });
+}
+
+/**
+ * @param octokit Octokit instance
+ * @param options Options passed to Octokit constructor
+ */
+
+function paginateRest(octokit) {
+  return {
+    paginate: Object.assign(paginate.bind(null, octokit), {
+      iterator: iterator.bind(null, octokit)
+    })
+  };
+}
+paginateRest.VERSION = VERSION;
+
+exports.paginateRest = paginateRest;
+//# sourceMappingURL=index.js.map
 
 
 /***/ })
