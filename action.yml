@@ -1,10 +1,14 @@
-name: 'Your name here'
-description: 'Provide a description here'
-author: 'Your name or organization here'
+name: 'Conflict Alarm'
+description: 'Notifies and tag PRs with conflicts'
+author: 'picollomartin'
 inputs:
-  myInput:              # change this
-    description: 'input description here'
-    default: 'default value if applicable'
+  githubToken:
+    description: 'Github token (GITHUB_TOKEN)'
+  conflictLabel:
+    description: 'Tag used for PRs with conflicts'
+    default: 'conflicts'
+  maxLimitPRs:
+    description: 'Max number of PRs for scan (max 200)'
 runs:
   using: 'node12'
   main: 'dist/index.js'
