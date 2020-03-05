@@ -84,7 +84,7 @@ export async function getOpenPullRequests(
   githubContext: GithubContext,
   {maxLimitPRs}: Inputs
 ): Promise<GithubPR[]> {
-  info(`Fetching Open PRs...`)
+  info(`Fetching open PRs...`)
   const openPRs = await getAllOpenPRs(githubContext, maxLimitPRs)
   info(`Found ${openPRs.length} open PRs`)
   return openPRs
