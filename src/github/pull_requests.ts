@@ -3,6 +3,7 @@ import {GithubContext} from './contexts'
 import {debug, info} from '../logger'
 import {Inputs} from '../inputs'
 import {MAX_NUMBER_PRS_PER_PAGE} from '../constants'
+import {inspect} from 'util'
 
 export interface GithubListPR extends Octokit.PullsListResponseItem {}
 
@@ -18,32 +19,40 @@ const listPRs = async (
   {octokit, owner, repo}: GithubRequest,
   page: number
 ): Promise<Octokit.Response<Octokit.PullsListResponse>> => {
-  debug(`Request page ${page} of PRs...`)
-  const pulls = await octokit.pulls.list({
-    repo,
-    owner,
-    per_page: MAX_NUMBER_PRS_PER_PAGE,
-    state: 'open',
-    page
-  })
-  debug(`Finish request page ${page} of PRs with size: ${pulls.data.length}`)
-  return pulls
+  try {
+    debug(`Request page ${page} of PRs...`)
+    const pulls = await octokit.pulls.list({
+      repo,
+      owner,
+      per_page: MAX_NUMBER_PRS_PER_PAGE,
+      state: 'open',
+      page
+    })
+    debug(`Finish request page ${page} of PRs with size: ${pulls.data.length}`)
+    return pulls
+  } catch (err) {
+    throw new Error(`Fail to list PRs page ${page} because ${inspect(err)}`)
+  }
 }
 
 const getPR = async (
   {octokit, owner, repo}: GithubRequest,
   number: number
 ): Promise<GithubPR> => {
-  debug(`Request PR number ${number}...`)
-  const pull = (
-    await octokit.pulls.get({
-      pull_number: number,
-      owner,
-      repo
-    })
-  ).data
-  debug(`Finish request PR number ${number}...`)
-  return pull
+  try {
+    debug(`Request PR number ${number}...`)
+    const pull = (
+      await octokit.pulls.get({
+        pull_number: number,
+        owner,
+        repo
+      })
+    ).data
+    debug(`Finish request PR number ${number}...`)
+    return pull
+  } catch (err) {
+    throw new Error(`Fail to get PR ${number} because ${inspect(err)}`)
+  }
 }
 
 const getAllOpenPRs = async (
