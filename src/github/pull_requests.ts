@@ -8,6 +8,7 @@ import {
 } from '../constants'
 import {inspect} from 'util'
 import {GithubTag} from './tags'
+import {wait} from '../helpers/wait'
 
 export interface GithubListPR extends Octokit.PullsListResponseItem {}
 
@@ -81,9 +82,10 @@ export type OpenPRs = {
 }
 
 export async function getOpenPullRequests(
-  githubContext: GithubContext
+  githubContext: GithubContext,
+  retriesCount: number
 ): Promise<OpenPRs> {
-  info(`Fetching open PRs...`)
+  info(`Fetching open PRs... (retries left ${retriesCount})`)
   try {
     const openPRs = await getAllOpenPRs(githubContext)
     info(`Found ${openPRs.length} open PRs`)
@@ -104,6 +106,13 @@ export async function getOpenPullRequests(
         0} with conflicts] [${prsByState.nonConflicting?.length ||
         0} without conflicts] [${prsByState.unknown?.length || 0} unknown]`
     )
+
+    // We need to retry this action because somes PRs are in unknown state that means that mergeability is not calculated yet
+    // (because this state is an async call explained here https://developer.github.com/v3/git/#checking-mergeability-of-pull-requests)
+    if (prsByState.unknown.length > 0 && retriesCount > 0) {
+      wait(500) // wait some random time giving github time to calculate unknown PRs states
+      return getOpenPullRequests(githubContext, retriesCount - 1)
+    }
 
     return prsByState
   } catch (err) {

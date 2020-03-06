@@ -1,5 +1,5 @@
 import {getInputs} from './inputs'
-import {error} from './logger'
+import {error, debug} from './logger'
 import getGithubContext from './github/contexts'
 import {
   getOpenPullRequests,
@@ -8,7 +8,6 @@ import {
   deleteTags
 } from './github/pull_requests'
 import {getTag} from './github/tags'
-import {debug} from 'console'
 import {inspect} from 'util'
 
 async function run(): Promise<void> {
@@ -16,7 +15,10 @@ async function run(): Promise<void> {
     const inputs = getInputs()
     const githubContext = getGithubContext(inputs)
     const tag = await getTag(githubContext, inputs.conflictLabel)
-    const openPRs = await getOpenPullRequests(githubContext)
+    const openPRs = await getOpenPullRequests(
+      githubContext,
+      inputs.retriesCount
+    )
 
     const taggedPRsWithoutConflicts =
       openPRs.nonConflicting?.filter(pr => hasTag(pr, tag)) || []

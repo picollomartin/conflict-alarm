@@ -1,5 +1,7 @@
 export const DEFAULT_CONFLICT_LABEL = 'conflicts'
 
+export const DEFAULT_RETRIES_COUNT = 3
+
 export enum GithubStatusCategories {
   'conflicting' = 'conflicting',
   'unknown' = 'unknown',
