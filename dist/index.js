@@ -2002,7 +2002,6 @@ const listPRs = ({ octokit, owner, repo }) => __awaiter(void 0, void 0, void 0, 
             per_page: constants_1.MAX_NUMBER_PRS_PER_PAGE,
             state: 'open'
         });
-        logger_1.debug(JSON.stringify(pulls));
         logger_1.debug(`Finish request PRs with size: ${pulls.length}`);
         return pulls;
     }
@@ -2036,11 +2035,25 @@ const getAllOpenPRs = (githubContext) => __awaiter(void 0, void 0, void 0, funct
     return Promise.all(pullRequestData);
 });
 function getOpenPullRequests(githubContext) {
+    var _a, _b, _c;
     return __awaiter(this, void 0, void 0, function* () {
         logger_1.info(`Fetching open PRs...`);
         const openPRs = yield getAllOpenPRs(githubContext);
         logger_1.info(`Found ${openPRs.length} open PRs`);
-        return openPRs;
+        const prsByState = openPRs.reduce((prs, pr) => {
+            logger_1.debug(`Mapping PR ${pr.number} in mergeable state ${pr.mergeable_state}`);
+            const mergeStatus = constants_1.GITHUB_MERGE_STATUS[pr.mergeable_state];
+            logger_1.debug(`Mapped to merge status ${mergeStatus}`);
+            if (!prs[mergeStatus])
+                prs[mergeStatus] = [];
+            prs[mergeStatus].push(pr);
+            return prs;
+        }, {});
+        logger_1.debug(`PRs by state: ${util_1.inspect(prsByState)}`);
+        logger_1.info(`Found PRs with the following status: [${((_a = prsByState.conflicting) === null || _a === void 0 ? void 0 : _a.length) ||
+            0} with conflicts] [${((_b = prsByState.nonConflicting) === null || _b === void 0 ? void 0 : _b.length) ||
+            0} without conflicts] [${((_c = prsByState.unknown) === null || _c === void 0 ? void 0 : _c.length) || 0} unknown]`);
+        return prsByState;
     });
 }
 exports.getOpenPullRequests = getOpenPullRequests;
@@ -3027,11 +3040,13 @@ const inputs_1 = __webpack_require__(679);
 const logger_1 = __webpack_require__(906);
 const contexts_1 = __importDefault(__webpack_require__(726));
 const pull_requests_1 = __webpack_require__(57);
+const tags_1 = __webpack_require__(698);
 function run() {
     return __awaiter(this, void 0, void 0, function* () {
         try {
             const inputs = inputs_1.getInputs();
             const githubContext = contexts_1.default(inputs);
+            yield tags_1.getTag(githubContext, inputs.conflictLabel);
             yield pull_requests_1.getOpenPullRequests(githubContext);
         }
         catch (err) {
@@ -3605,6 +3620,21 @@ function checkMode (stat, options) {
 
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.DEFAULT_CONFLICT_LABEL = 'conflicts';
+var GithubStatusCategories;
+(function (GithubStatusCategories) {
+    GithubStatusCategories["conflicting"] = "conflicting";
+    GithubStatusCategories["unknown"] = "unknown";
+    GithubStatusCategories["nonConflicting"] = "nonConflicting";
+})(GithubStatusCategories = exports.GithubStatusCategories || (exports.GithubStatusCategories = {}));
+exports.GITHUB_MERGE_STATUS = {
+    dirty: GithubStatusCategories.conflicting,
+    unknown: GithubStatusCategories.unknown,
+    blocked: GithubStatusCategories.nonConflicting,
+    behind: GithubStatusCategories.nonConflicting,
+    unstable: GithubStatusCategories.nonConflicting,
+    has_hooks: GithubStatusCategories.nonConflicting,
+    clean: GithubStatusCategories.nonConflicting
+};
 exports.MAX_NUMBER_PRS_PER_PAGE = 100;
 
 
@@ -8588,6 +8618,41 @@ module.exports = (promise, onFinally) => {
 		})
 	);
 };
+
+
+/***/ }),
+
+/***/ 698:
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
+
+"use strict";
+
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const logger_1 = __webpack_require__(906);
+const util_1 = __webpack_require__(669);
+function getTag(githubContext, tagName) {
+    return __awaiter(this, void 0, void 0, function* () {
+        logger_1.debug(`Fetching tag with name ${tagName}...`);
+        const owner = githubContext.context.repo.owner;
+        const repo = githubContext.context.repo.repo;
+        return githubContext.octokit.issues
+            .getLabel({ name: tagName, owner, repo })
+            .then(response => {
+            logger_1.debug(`Tag found with data ${util_1.inspect(response)}...`);
+            return response.data;
+        });
+    });
+}
+exports.getTag = getTag;
 
 
 /***/ }),
