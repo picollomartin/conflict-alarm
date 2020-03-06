@@ -2058,7 +2058,7 @@ function getOpenPullRequests(githubContext, retriesCount) {
             // We need to retry this action because somes PRs are in unknown state that means that mergeability is not calculated yet
             // (because this state is an async call explained here https://developer.github.com/v3/git/#checking-mergeability-of-pull-requests)
             if (((_d = prsByState.unknown) === null || _d === void 0 ? void 0 : _d.length) > 0 && retriesCount > 0) {
-                wait_1.wait(500); // wait some random time giving github time to calculate unknown PRs states
+                yield wait_1.wait(500); // wait some random time giving github time to calculate unknown PRs states
                 return getOpenPullRequests(githubContext, retriesCount - 1);
             }
             return prsByState;
