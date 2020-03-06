@@ -2063,7 +2063,64 @@ function getOpenPullRequests(githubContext) {
     });
 }
 exports.getOpenPullRequests = getOpenPullRequests;
+function hasTag(pr, tag) {
+    return pr.labels.map(label => label.id).includes(tag.id);
+}
+exports.hasTag = hasTag;
+function addCommentAndTag(githubContext, prs, generateComment, label) {
+    return __awaiter(this, void 0, void 0, function* () {
+        logger_1.info(`Attempt to tag and comment conflict PRs...`);
+        const repo = githubContext.context.repo.repo;
+        const owner = githubContext.context.repo.owner;
+        try {
+            yield Promise.all(prs.map(pr => githubContext.octokit.issues.createComment({
+                owner,
+                repo,
+                issue_number: pr.number,
+                body: generateComment(pr)
+            })));
+            yield Promise.all(prs.map(pr => githubContext.octokit.issues.addLabels({
+                owner,
+                repo,
+                issue_number: pr.number,
+                labels: [label]
+            })));
+        }
+        catch (err) {
+            logger_1.debug(util_1.inspect(err));
+            throw new Error('Fail to add comments and tags');
+        }
+    });
+}
+exports.addCommentAndTag = addCommentAndTag;
+function deleteTags(githubContext, prs, label) {
+    return __awaiter(this, void 0, void 0, function* () {
+        logger_1.info(`Attempt to remove tags from non conflict PRs...`);
+        const repo = githubContext.context.repo.repo;
+        const owner = githubContext.context.repo.owner;
+        try {
+            yield Promise.all(prs.map(pr => githubContext.octokit.issues.removeLabel({
+                owner,
+                repo,
+                issue_number: pr.number,
+                name: label
+            })));
+        }
+        catch (err) {
+            logger_1.debug(util_1.inspect(err));
+            throw new Error('Fail to remove comments and tags');
+        }
+    });
+}
+exports.deleteTags = deleteTags;
 
+
+/***/ }),
+
+/***/ 82:
+/***/ (function(module) {
+
+module.exports = require("console");
 
 /***/ }),
 
@@ -3047,13 +3104,20 @@ const logger_1 = __webpack_require__(906);
 const contexts_1 = __importDefault(__webpack_require__(726));
 const pull_requests_1 = __webpack_require__(57);
 const tags_1 = __webpack_require__(698);
+const console_1 = __webpack_require__(82);
 function run() {
     return __awaiter(this, void 0, void 0, function* () {
         try {
             const inputs = inputs_1.getInputs();
             const githubContext = contexts_1.default(inputs);
-            yield tags_1.getTag(githubContext, inputs.conflictLabel);
-            yield pull_requests_1.getOpenPullRequests(githubContext);
+            const tag = yield tags_1.getTag(githubContext, inputs.conflictLabel);
+            const openPRs = yield pull_requests_1.getOpenPullRequests(githubContext);
+            const taggedPRsWithoutConflicts = openPRs.nonConflicting.filter(pr => pull_requests_1.hasTag(pr, tag));
+            const nonTaggedPRsWithConflicts = openPRs.conflicting.filter(pr => !pull_requests_1.hasTag(pr, tag));
+            console_1.debug(`PRs without conflicts and with conflict tag: ${taggedPRsWithoutConflicts}`);
+            console_1.debug(`PRs with conflicts and without conflict tag: ${nonTaggedPRsWithConflicts}`);
+            yield pull_requests_1.addCommentAndTag(githubContext, nonTaggedPRsWithConflicts, pr => `:boom: Seems like your PR have some issues @${pr.user.login} :boom:`, tag.name);
+            yield pull_requests_1.deleteTags(githubContext, taggedPRsWithoutConflicts, tag.name);
         }
         catch (err) {
             logger_1.error(err);
