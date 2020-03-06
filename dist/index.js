@@ -3106,14 +3106,15 @@ const pull_requests_1 = __webpack_require__(57);
 const tags_1 = __webpack_require__(698);
 const console_1 = __webpack_require__(82);
 function run() {
+    var _a, _b;
     return __awaiter(this, void 0, void 0, function* () {
         try {
             const inputs = inputs_1.getInputs();
             const githubContext = contexts_1.default(inputs);
             const tag = yield tags_1.getTag(githubContext, inputs.conflictLabel);
             const openPRs = yield pull_requests_1.getOpenPullRequests(githubContext);
-            const taggedPRsWithoutConflicts = openPRs.nonConflicting.filter(pr => pull_requests_1.hasTag(pr, tag));
-            const nonTaggedPRsWithConflicts = openPRs.conflicting.filter(pr => !pull_requests_1.hasTag(pr, tag));
+            const taggedPRsWithoutConflicts = ((_a = openPRs.nonConflicting) === null || _a === void 0 ? void 0 : _a.filter(pr => pull_requests_1.hasTag(pr, tag))) || [];
+            const nonTaggedPRsWithConflicts = ((_b = openPRs.conflicting) === null || _b === void 0 ? void 0 : _b.filter(pr => !pull_requests_1.hasTag(pr, tag))) || [];
             console_1.debug(`PRs without conflicts and with conflict tag: ${taggedPRsWithoutConflicts}`);
             console_1.debug(`PRs with conflicts and without conflict tag: ${nonTaggedPRsWithConflicts}`);
             yield pull_requests_1.addCommentAndTag(githubContext, nonTaggedPRsWithConflicts, pr => `:boom: Seems like your PR have some issues @${pr.user.login} :boom:`, tag.name);

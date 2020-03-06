@@ -17,12 +17,10 @@ async function run(): Promise<void> {
     const tag = await getTag(githubContext, inputs.conflictLabel)
     const openPRs = await getOpenPullRequests(githubContext)
 
-    const taggedPRsWithoutConflicts = openPRs.nonConflicting.filter(pr =>
-      hasTag(pr, tag)
-    )
-    const nonTaggedPRsWithConflicts = openPRs.conflicting.filter(
-      pr => !hasTag(pr, tag)
-    )
+    const taggedPRsWithoutConflicts =
+      openPRs.nonConflicting?.filter(pr => hasTag(pr, tag)) || []
+    const nonTaggedPRsWithConflicts =
+      openPRs.conflicting?.filter(pr => !hasTag(pr, tag)) || []
 
     debug(
       `PRs without conflicts and with conflict tag: ${taggedPRsWithoutConflicts}`
