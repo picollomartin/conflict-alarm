@@ -1993,6 +1993,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const logger_1 = __webpack_require__(906);
 const constants_1 = __webpack_require__(211);
 const util_1 = __webpack_require__(669);
+const wait_1 = __webpack_require__(139);
 const listPRs = ({ octokit, owner, repo }) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         logger_1.debug(`Request list PRs...`);
@@ -2034,10 +2035,10 @@ const getAllOpenPRs = (githubContext) => __awaiter(void 0, void 0, void 0, funct
     const pullRequestData = openPRs.map(pullRequest => getPR(requestData, pullRequest.number));
     return Promise.all(pullRequestData);
 });
-function getOpenPullRequests(githubContext) {
+function getOpenPullRequests(githubContext, retriesCount) {
     var _a, _b, _c;
     return __awaiter(this, void 0, void 0, function* () {
-        logger_1.info(`Fetching open PRs...`);
+        logger_1.info(`Fetching open PRs... (retries left ${retriesCount})`);
         try {
             const openPRs = yield getAllOpenPRs(githubContext);
             logger_1.info(`Found ${openPRs.length} open PRs`);
@@ -2054,6 +2055,12 @@ function getOpenPullRequests(githubContext) {
             logger_1.info(`Found PRs with the following status: [${((_a = prsByState.conflicting) === null || _a === void 0 ? void 0 : _a.length) ||
                 0} with conflicts] [${((_b = prsByState.nonConflicting) === null || _b === void 0 ? void 0 : _b.length) ||
                 0} without conflicts] [${((_c = prsByState.unknown) === null || _c === void 0 ? void 0 : _c.length) || 0} unknown]`);
+            // We need to retry this action because somes PRs are in unknown state that means that mergeability is not calculated yet
+            // (because this state is an async call explained here https://developer.github.com/v3/git/#checking-mergeability-of-pull-requests)
+            if (prsByState.unknown.length > 0 && retriesCount > 0) {
+                wait_1.wait(500); // wait some random time giving github time to calculate unknown PRs states
+                return getOpenPullRequests(githubContext, retriesCount - 1);
+            }
             return prsByState;
         }
         catch (err) {
@@ -2114,13 +2121,6 @@ function deleteTags(githubContext, prs, label) {
 }
 exports.deleteTags = deleteTags;
 
-
-/***/ }),
-
-/***/ 82:
-/***/ (function(module) {
-
-module.exports = require("console");
 
 /***/ }),
 
@@ -3104,7 +3104,6 @@ const logger_1 = __webpack_require__(906);
 const contexts_1 = __importDefault(__webpack_require__(726));
 const pull_requests_1 = __webpack_require__(57);
 const tags_1 = __webpack_require__(698);
-const console_1 = __webpack_require__(82);
 const util_1 = __webpack_require__(669);
 function run() {
     var _a, _b;
@@ -3113,11 +3112,11 @@ function run() {
             const inputs = inputs_1.getInputs();
             const githubContext = contexts_1.default(inputs);
             const tag = yield tags_1.getTag(githubContext, inputs.conflictLabel);
-            const openPRs = yield pull_requests_1.getOpenPullRequests(githubContext);
+            const openPRs = yield pull_requests_1.getOpenPullRequests(githubContext, inputs.retriesCount);
             const taggedPRsWithoutConflicts = ((_a = openPRs.nonConflicting) === null || _a === void 0 ? void 0 : _a.filter(pr => pull_requests_1.hasTag(pr, tag))) || [];
             const nonTaggedPRsWithConflicts = ((_b = openPRs.conflicting) === null || _b === void 0 ? void 0 : _b.filter(pr => !pull_requests_1.hasTag(pr, tag))) || [];
-            console_1.debug(`PRs without conflicts and with conflict tag: ${util_1.inspect(taggedPRsWithoutConflicts)}`);
-            console_1.debug(`PRs with conflicts and without conflict tag: ${util_1.inspect(nonTaggedPRsWithConflicts)}`);
+            logger_1.debug(`PRs without conflicts and with conflict tag: ${util_1.inspect(taggedPRsWithoutConflicts)}`);
+            logger_1.debug(`PRs with conflicts and without conflict tag: ${util_1.inspect(nonTaggedPRsWithConflicts)}`);
             yield pull_requests_1.addCommentAndTag(githubContext, nonTaggedPRsWithConflicts, pr => `:boom: Seems like your PR have some merge conflicts @${pr.user.login} :boom:`, tag.name);
             yield pull_requests_1.deleteTags(githubContext, taggedPRsWithoutConflicts, tag.name);
         }
@@ -3127,6 +3126,36 @@ function run() {
     });
 }
 run();
+
+
+/***/ }),
+
+/***/ 139:
+/***/ (function(__unusedmodule, exports) {
+
+"use strict";
+
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+function wait(milliseconds) {
+    return __awaiter(this, void 0, void 0, function* () {
+        return new Promise(resolve => {
+            if (isNaN(milliseconds)) {
+                throw new Error('milliseconds not a number');
+            }
+            setTimeout(() => resolve('done!'), milliseconds);
+        });
+    });
+}
+exports.wait = wait;
 
 
 /***/ }),
@@ -3692,6 +3721,7 @@ function checkMode (stat, options) {
 
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.DEFAULT_CONFLICT_LABEL = 'conflicts';
+exports.DEFAULT_RETRIES_COUNT = 3;
 var GithubStatusCategories;
 (function (GithubStatusCategories) {
     GithubStatusCategories["conflicting"] = "conflicting";
@@ -8635,8 +8665,9 @@ function getInputs() {
     logger_1.debug('Attempt to get user inputs...');
     const githubToken = core.getInput('githubToken', { required: true });
     const conflictLabel = core.getInput('conflictLabel') || constants_1.DEFAULT_CONFLICT_LABEL;
-    logger_1.info(`Inputs for action: label -> [${conflictLabel}]`);
-    return { githubToken, conflictLabel };
+    const retriesCount = Number(core.getInput('retriesCount') || constants_1.DEFAULT_RETRIES_COUNT);
+    logger_1.info(`Inputs for action: label -> [${conflictLabel}], retriesCount -> [${retriesCount}]`);
+    return { githubToken, conflictLabel, retriesCount };
 }
 exports.getInputs = getInputs;
 
