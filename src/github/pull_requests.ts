@@ -1,7 +1,11 @@
 import {Octokit} from '@octokit/rest'
 import {GithubContext} from './contexts'
 import {debug, info} from '../logger'
-import {MAX_NUMBER_PRS_PER_PAGE} from '../constants'
+import {
+  MAX_NUMBER_PRS_PER_PAGE,
+  GithubStatusCategories,
+  GITHUB_MERGE_STATUS
+} from '../constants'
 import {inspect} from 'util'
 
 export interface GithubListPR extends Octokit.PullsListResponseItem {}
@@ -70,11 +74,34 @@ const getAllOpenPRs = async (
   return Promise.all(pullRequestData)
 }
 
+export type OpenPRs = {
+  // eslint-disable-next-line @typescript-eslint/generic-type-naming
+  [key in GithubStatusCategories]: GithubPR[]
+}
+
 export async function getOpenPullRequests(
   githubContext: GithubContext
-): Promise<GithubPR[]> {
+): Promise<OpenPRs> {
   info(`Fetching open PRs...`)
   const openPRs = await getAllOpenPRs(githubContext)
   info(`Found ${openPRs.length} open PRs`)
-  return openPRs
+
+  const prsByState = openPRs.reduce((prs, pr) => {
+    debug(`Mapping PR ${pr.number} in mergeable state ${pr.mergeable_state}`)
+    const mergeStatus = GITHUB_MERGE_STATUS[pr.mergeable_state]
+    debug(`Mapped to merge status ${mergeStatus}`)
+    if (!prs[mergeStatus]) prs[mergeStatus] = []
+    prs[mergeStatus].push(pr)
+    return prs
+  }, {} as OpenPRs)
+
+  debug(`PRs by state: ${inspect(prsByState)}`)
+
+  info(
+    `Found PRs with the following status: [${prsByState.conflicting?.length ||
+      0} with conflicts] [${prsByState.nonConflicting?.length ||
+      0} without conflicts] [${prsByState.unknown?.length || 0} unknown]`
+  )
+
+  return prsByState
 }
