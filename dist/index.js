@@ -2036,7 +2036,7 @@ const getAllOpenPRs = (githubContext) => __awaiter(void 0, void 0, void 0, funct
     return Promise.all(pullRequestData);
 });
 function getOpenPullRequests(githubContext, retriesCount) {
-    var _a, _b, _c;
+    var _a, _b, _c, _d;
     return __awaiter(this, void 0, void 0, function* () {
         logger_1.info(`Fetching open PRs... (retries left ${retriesCount})`);
         try {
@@ -2057,7 +2057,7 @@ function getOpenPullRequests(githubContext, retriesCount) {
                 0} without conflicts] [${((_c = prsByState.unknown) === null || _c === void 0 ? void 0 : _c.length) || 0} unknown]`);
             // We need to retry this action because somes PRs are in unknown state that means that mergeability is not calculated yet
             // (because this state is an async call explained here https://developer.github.com/v3/git/#checking-mergeability-of-pull-requests)
-            if (prsByState.unknown.length > 0 && retriesCount > 0) {
+            if (((_d = prsByState.unknown) === null || _d === void 0 ? void 0 : _d.length) > 0 && retriesCount > 0) {
                 wait_1.wait(500); // wait some random time giving github time to calculate unknown PRs states
                 return getOpenPullRequests(githubContext, retriesCount - 1);
             }
