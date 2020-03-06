@@ -9,6 +9,7 @@ import {
 } from './github/pull_requests'
 import {getTag} from './github/tags'
 import {debug} from 'console'
+import {inspect} from 'util'
 
 async function run(): Promise<void> {
   try {
@@ -23,17 +24,21 @@ async function run(): Promise<void> {
       openPRs.conflicting?.filter(pr => !hasTag(pr, tag)) || []
 
     debug(
-      `PRs without conflicts and with conflict tag: ${taggedPRsWithoutConflicts}`
+      `PRs without conflicts and with conflict tag: ${inspect(
+        taggedPRsWithoutConflicts
+      )}`
     )
     debug(
-      `PRs with conflicts and without conflict tag: ${nonTaggedPRsWithConflicts}`
+      `PRs with conflicts and without conflict tag: ${inspect(
+        nonTaggedPRsWithConflicts
+      )}`
     )
 
     await addCommentAndTag(
       githubContext,
       nonTaggedPRsWithConflicts,
       pr =>
-        `:boom: Seems like your PR have some issues @${pr.user.login} :boom:`,
+        `:boom: Seems like your PR have some merge conflicts @${pr.user.login} :boom:`,
       tag.name
     )
 

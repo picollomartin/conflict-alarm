@@ -3105,6 +3105,7 @@ const contexts_1 = __importDefault(__webpack_require__(726));
 const pull_requests_1 = __webpack_require__(57);
 const tags_1 = __webpack_require__(698);
 const console_1 = __webpack_require__(82);
+const util_1 = __webpack_require__(669);
 function run() {
     var _a, _b;
     return __awaiter(this, void 0, void 0, function* () {
@@ -3115,9 +3116,9 @@ function run() {
             const openPRs = yield pull_requests_1.getOpenPullRequests(githubContext);
             const taggedPRsWithoutConflicts = ((_a = openPRs.nonConflicting) === null || _a === void 0 ? void 0 : _a.filter(pr => pull_requests_1.hasTag(pr, tag))) || [];
             const nonTaggedPRsWithConflicts = ((_b = openPRs.conflicting) === null || _b === void 0 ? void 0 : _b.filter(pr => !pull_requests_1.hasTag(pr, tag))) || [];
-            console_1.debug(`PRs without conflicts and with conflict tag: ${taggedPRsWithoutConflicts}`);
-            console_1.debug(`PRs with conflicts and without conflict tag: ${nonTaggedPRsWithConflicts}`);
-            yield pull_requests_1.addCommentAndTag(githubContext, nonTaggedPRsWithConflicts, pr => `:boom: Seems like your PR have some issues @${pr.user.login} :boom:`, tag.name);
+            console_1.debug(`PRs without conflicts and with conflict tag: ${util_1.inspect(taggedPRsWithoutConflicts)}`);
+            console_1.debug(`PRs with conflicts and without conflict tag: ${util_1.inspect(nonTaggedPRsWithConflicts)}`);
+            yield pull_requests_1.addCommentAndTag(githubContext, nonTaggedPRsWithConflicts, pr => `:boom: Seems like your PR have some merge conflicts @${pr.user.login} :boom:`, tag.name);
             yield pull_requests_1.deleteTags(githubContext, taggedPRsWithoutConflicts, tag.name);
         }
         catch (err) {
