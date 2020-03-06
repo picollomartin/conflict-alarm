@@ -8641,14 +8641,18 @@ const logger_1 = __webpack_require__(906);
 const util_1 = __webpack_require__(669);
 function getTag(githubContext, tagName) {
     return __awaiter(this, void 0, void 0, function* () {
-        logger_1.debug(`Fetching tag with name ${tagName}...`);
+        logger_1.debug(`Fetching tag with name [${tagName}]...`);
         const owner = githubContext.context.repo.owner;
         const repo = githubContext.context.repo.repo;
         return githubContext.octokit.issues
             .getLabel({ name: tagName, owner, repo })
             .then(response => {
-            logger_1.debug(`Tag found with data ${util_1.inspect(response)}...`);
+            logger_1.debug(`Tag found with data [${util_1.inspect(response)}]...`);
             return response.data;
+        })
+            .catch(err => {
+            logger_1.debug(util_1.inspect(err));
+            throw new Error(`Fail to get tag with name [${tagName}]`);
         });
     });
 }
