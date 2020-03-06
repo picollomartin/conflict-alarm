@@ -2038,22 +2038,28 @@ function getOpenPullRequests(githubContext) {
     var _a, _b, _c;
     return __awaiter(this, void 0, void 0, function* () {
         logger_1.info(`Fetching open PRs...`);
-        const openPRs = yield getAllOpenPRs(githubContext);
-        logger_1.info(`Found ${openPRs.length} open PRs`);
-        const prsByState = openPRs.reduce((prs, pr) => {
-            logger_1.debug(`Mapping PR ${pr.number} in mergeable state ${pr.mergeable_state}`);
-            const mergeStatus = constants_1.GITHUB_MERGE_STATUS[pr.mergeable_state];
-            logger_1.debug(`Mapped to merge status ${mergeStatus}`);
-            if (!prs[mergeStatus])
-                prs[mergeStatus] = [];
-            prs[mergeStatus].push(pr);
-            return prs;
-        }, {});
-        logger_1.debug(`PRs by state: ${util_1.inspect(prsByState)}`);
-        logger_1.info(`Found PRs with the following status: [${((_a = prsByState.conflicting) === null || _a === void 0 ? void 0 : _a.length) ||
-            0} with conflicts] [${((_b = prsByState.nonConflicting) === null || _b === void 0 ? void 0 : _b.length) ||
-            0} without conflicts] [${((_c = prsByState.unknown) === null || _c === void 0 ? void 0 : _c.length) || 0} unknown]`);
-        return prsByState;
+        try {
+            const openPRs = yield getAllOpenPRs(githubContext);
+            logger_1.info(`Found ${openPRs.length} open PRs`);
+            const prsByState = openPRs.reduce((prs, pr) => {
+                logger_1.debug(`Mapping PR ${pr.number} in mergeable state ${pr.mergeable_state}`);
+                const mergeStatus = constants_1.GITHUB_MERGE_STATUS[pr.mergeable_state];
+                logger_1.debug(`Mapped to merge status ${mergeStatus}`);
+                if (!prs[mergeStatus])
+                    prs[mergeStatus] = [];
+                prs[mergeStatus].push(pr);
+                return prs;
+            }, {});
+            logger_1.debug(`PRs by state: ${util_1.inspect(prsByState)}`);
+            logger_1.info(`Found PRs with the following status: [${((_a = prsByState.conflicting) === null || _a === void 0 ? void 0 : _a.length) ||
+                0} with conflicts] [${((_b = prsByState.nonConflicting) === null || _b === void 0 ? void 0 : _b.length) ||
+                0} without conflicts] [${((_c = prsByState.unknown) === null || _c === void 0 ? void 0 : _c.length) || 0} unknown]`);
+            return prsByState;
+        }
+        catch (err) {
+            logger_1.debug(util_1.inspect(err));
+            throw new Error('Fail to get open pull requests');
+        }
     });
 }
 exports.getOpenPullRequests = getOpenPullRequests;

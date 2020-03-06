@@ -83,25 +83,30 @@ export async function getOpenPullRequests(
   githubContext: GithubContext
 ): Promise<OpenPRs> {
   info(`Fetching open PRs...`)
-  const openPRs = await getAllOpenPRs(githubContext)
-  info(`Found ${openPRs.length} open PRs`)
+  try {
+    const openPRs = await getAllOpenPRs(githubContext)
+    info(`Found ${openPRs.length} open PRs`)
 
-  const prsByState = openPRs.reduce((prs, pr) => {
-    debug(`Mapping PR ${pr.number} in mergeable state ${pr.mergeable_state}`)
-    const mergeStatus = GITHUB_MERGE_STATUS[pr.mergeable_state]
-    debug(`Mapped to merge status ${mergeStatus}`)
-    if (!prs[mergeStatus]) prs[mergeStatus] = []
-    prs[mergeStatus].push(pr)
-    return prs
-  }, {} as OpenPRs)
+    const prsByState = openPRs.reduce((prs, pr) => {
+      debug(`Mapping PR ${pr.number} in mergeable state ${pr.mergeable_state}`)
+      const mergeStatus = GITHUB_MERGE_STATUS[pr.mergeable_state]
+      debug(`Mapped to merge status ${mergeStatus}`)
+      if (!prs[mergeStatus]) prs[mergeStatus] = []
+      prs[mergeStatus].push(pr)
+      return prs
+    }, {} as OpenPRs)
 
-  debug(`PRs by state: ${inspect(prsByState)}`)
+    debug(`PRs by state: ${inspect(prsByState)}`)
 
-  info(
-    `Found PRs with the following status: [${prsByState.conflicting?.length ||
-      0} with conflicts] [${prsByState.nonConflicting?.length ||
-      0} without conflicts] [${prsByState.unknown?.length || 0} unknown]`
-  )
+    info(
+      `Found PRs with the following status: [${prsByState.conflicting?.length ||
+        0} with conflicts] [${prsByState.nonConflicting?.length ||
+        0} without conflicts] [${prsByState.unknown?.length || 0} unknown]`
+    )
 
-  return prsByState
+    return prsByState
+  } catch (err) {
+    debug(inspect(err))
+    throw new Error('Fail to get open pull requests')
+  }
 }
