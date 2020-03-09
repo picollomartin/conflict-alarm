@@ -48,9 +48,11 @@ export async function nonConflictPRs({
 }: ActionTrigger): Promise<void> {
   info(`Attempt to remove tags from non conflict PRs...`)
   const commentGenerator = (pr: GithubPR): string =>
-    `:tada: Seems like your PR is ok now @${
+    `@${
       pr.user.login
-    } :tada: \n ${getRandomMemeLink(MemeTypes.NON_CONFLICTS)}`
+    } \n :tada: Seems like your PR is ok now :tada: \n ${getRandomMemeLink(
+      MemeTypes.NON_CONFLICTS
+    )}`
   try {
     await Promise.all(
       prs.map(pr =>
@@ -74,9 +76,11 @@ export async function conflictPRs({
   info(`Attempt to tag and comment conflict PRs...`)
   try {
     const commentGenerator = (pr: GithubPR): string =>
-      `:boom: Seems like your PR have some merge conflicts @${
+      `@${
         pr.user.login
-      } :boom: \n ${getRandomMemeLink(MemeTypes.CONFLICTS)}`
+      } \n :boom: Seems like your PR have some merge conflicts :boom: \n ${getRandomMemeLink(
+        MemeTypes.CONFLICTS
+      )}`
     await Promise.all(
       prs.map(pr =>
         Promise.all([
