@@ -2,8 +2,6 @@
   <a href="https://github.com/actions/typescript-action/actions"><img alt="typescript-action status" src="https://github.com/actions/typescript-action/workflows/build-test/badge.svg"></a>
 </p>
 
-# Creates a JavaScript Action using TypeScript
-
 Use this template to bootstrap the creation of a JavaScript action.:rocket:
 
 This template includes compilication support, tests, a validation workflow, publishing, and versioning guidance.  
