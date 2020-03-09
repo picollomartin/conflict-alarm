@@ -36,7 +36,7 @@ const getRandomMemeLink = (type: MemeTypes): string => {
       : CONFLICT_MEMES_COUNT
 
   const randomNumber = random(1, memeCount)
-  const url = `![Meme](${MEME_URL}/${type}_${randomNumber}.jpg?raw=true)`
+  const url = `![Meme](${MEME_URL}/${type}/meme_${randomNumber}.jpg?raw=true)`
   debug(`Meme ${type} generated with url ${url}`)
   return url
 }
