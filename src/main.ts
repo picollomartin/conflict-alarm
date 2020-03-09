@@ -1,14 +1,10 @@
 import {getInputs} from './inputs'
 import {error, debug} from './logger'
 import getGithubContext from './github/contexts'
-import {
-  getOpenPullRequests,
-  hasTag,
-  addCommentAndTag,
-  deleteTags
-} from './github/pull_requests'
+import {getOpenPullRequests, hasTag} from './github/pull_requests'
 import {getTag} from './github/tags'
 import {inspect} from 'util'
+import {nonConflictPRs, conflictPRs} from './actions'
 
 async function run(): Promise<void> {
   try {
@@ -36,15 +32,19 @@ async function run(): Promise<void> {
       )}`
     )
 
-    await addCommentAndTag(
+    const conflictAction = conflictPRs({
       githubContext,
-      nonTaggedPRsWithConflicts,
-      pr =>
-        `:boom: Seems like your PR have some merge conflicts @${pr.user.login} :boom:`,
-      tag.name
-    )
+      prs: nonTaggedPRsWithConflicts,
+      label: tag.name
+    })
 
-    await deleteTags(githubContext, taggedPRsWithoutConflicts, tag.name)
+    const nonConflictAction = nonConflictPRs({
+      githubContext,
+      prs: taggedPRsWithoutConflicts,
+      label: tag.name
+    })
+
+    await Promise.all([conflictAction, nonConflictAction])
   } catch (err) {
     error(err)
   }

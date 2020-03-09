@@ -5,7 +5,6 @@ import {debug, info} from './logger'
 export interface Inputs {
   githubToken: string
   conflictLabel: string
-
   retriesCount: number
 }
 

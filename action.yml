@@ -7,6 +7,9 @@ inputs:
   conflictLabel:
     description: 'Tag used for PRs with conflicts'
     default: 'conflicts'
+  retriesCount:
+    description: 'Retries count for calculate mergeability of PRs'
+    default: 3
 runs:
   using: 'node12'
   main: 'dist/index.js'

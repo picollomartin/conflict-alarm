@@ -2,7 +2,7 @@ import {Octokit} from '@octokit/rest'
 import {GithubContext} from './contexts'
 import {debug, info} from '../logger'
 import {
-  MAX_NUMBER_PRS_PER_PAGE,
+  MAX_NUMBER_ITEMS_PER_PAGE,
   GithubStatusCategories,
   GITHUB_MERGE_STATUS
 } from '../constants'
@@ -30,7 +30,7 @@ const listPRs = async ({
     const pulls = await octokit.paginate('GET /repos/:owner/:repo/pulls', {
       repo,
       owner,
-      per_page: MAX_NUMBER_PRS_PER_PAGE,
+      per_page: MAX_NUMBER_ITEMS_PER_PAGE,
       state: 'open'
     })
     debug(`Finish request PRs with size: ${pulls.length}`)
@@ -108,7 +108,7 @@ export async function getOpenPullRequests(
     )
 
     // We need to retry this action because somes PRs are in unknown state that means that mergeability is not calculated yet
-    // (because this state is an async call explained here https://developer.github.com/v3/git/#checking-mergeability-of-pull-requests)
+    // (because this state is an async call as is explained here https://developer.github.com/v3/git/#checking-mergeability-of-pull-requests)
     if (prsByState.unknown?.length > 0 && retriesCount > 0) {
       await wait(500) // wait some random time giving github time to calculate unknown PRs states
       return getOpenPullRequests(githubContext, retriesCount - 1)
@@ -125,64 +125,77 @@ export function hasTag(pr: GithubPR, tag: GithubTag): boolean {
   return pr.labels.map(label => label.id).includes(tag.id)
 }
 
-export async function addCommentAndTag(
+export function addComment(
   githubContext: GithubContext,
-  prs: GithubPR[],
-  generateComment: (pr: GithubPR) => string,
-  label: string
-): Promise<void> {
-  info(`Attempt to tag and comment conflict PRs...`)
+  pr: GithubPR,
+  comment: string
+): Promise<Octokit.GistsCreateCommentResponse> {
+  debug(`Attempt to add comment ${comment} for PR: ${pr.number}`)
   const repo = githubContext.context.repo.repo
   const owner = githubContext.context.repo.owner
-  try {
-    await Promise.all(
-      prs.map(pr =>
-        githubContext.octokit.issues.createComment({
-          owner,
-          repo,
-          issue_number: pr.number,
-          body: generateComment(pr)
-        })
-      )
-    )
-
-    await Promise.all(
-      prs.map(pr =>
-        githubContext.octokit.issues.addLabels({
-          owner,
-          repo,
-          issue_number: pr.number,
-          labels: [label]
-        })
-      )
-    )
-  } catch (err) {
-    debug(inspect(err))
-    throw new Error('Fail to add comments and tags')
-  }
+  return githubContext.octokit.issues
+    .createComment({
+      owner,
+      repo,
+      issue_number: pr.number,
+      body: comment
+    })
+    .then(res => {
+      debug(`Finish add comment ${comment} for PR: ${pr.number}`)
+      return res.data
+    })
+    .catch(err => {
+      debug(`Fail to add comment ${comment} for PR: ${pr.number}`)
+      throw err
+    })
 }
 
-export async function deleteTags(
+export function addLabel(
   githubContext: GithubContext,
-  prs: GithubPR[],
+  pr: GithubPR,
   label: string
-): Promise<void> {
-  info(`Attempt to remove tags from non conflict PRs...`)
+): Promise<Octokit.IssuesAddLabelsResponse> {
+  debug(`Attempt to add label ${label} for PR: ${pr.number}`)
   const repo = githubContext.context.repo.repo
   const owner = githubContext.context.repo.owner
-  try {
-    await Promise.all(
-      prs.map(pr =>
-        githubContext.octokit.issues.removeLabel({
-          owner,
-          repo,
-          issue_number: pr.number,
-          name: label
-        })
-      )
-    )
-  } catch (err) {
-    debug(inspect(err))
-    throw new Error('Fail to remove comments and tags')
-  }
+  return githubContext.octokit.issues
+    .addLabels({
+      owner,
+      repo,
+      issue_number: pr.number,
+      labels: [label]
+    })
+    .then(res => {
+      debug(`Finish add label ${label} for PR: ${pr.number}`)
+      return res.data
+    })
+    .catch(err => {
+      debug(`Fail to add label ${label} for PR: ${pr.number}`)
+      throw err
+    })
+}
+
+export function removeLabel(
+  githubContext: GithubContext,
+  pr: GithubPR,
+  label: string
+): Promise<Octokit.IssuesRemoveLabelResponse> {
+  const repo = githubContext.context.repo.repo
+  const owner = githubContext.context.repo.owner
+  debug(`Attempt to remove label ${label} for PR: ${pr.number}`)
+  return githubContext.octokit.issues
+    .removeLabel({
+      owner,
+      repo,
+      issue_number: pr.number,
+      name: label
+    })
+    .then(res => {
+      debug(`Finish removing label ${label} for PR: ${pr.number}`)
+      return res.data
+    })
+    .catch(err => {
+      debug(`Fail to remove label ${label} for PR: ${pr.number}`)
+      throw err
+    })
 }
