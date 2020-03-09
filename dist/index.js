@@ -2000,7 +2000,7 @@ const listPRs = ({ octokit, owner, repo }) => __awaiter(void 0, void 0, void 0, 
         const pulls = yield octokit.paginate('GET /repos/:owner/:repo/pulls', {
             repo,
             owner,
-            per_page: constants_1.MAX_NUMBER_PRS_PER_PAGE,
+            per_page: constants_1.MAX_NUMBER_ITEMS_PER_PAGE,
             state: 'open'
         });
         logger_1.debug(`Finish request PRs with size: ${pulls.length}`);
@@ -2056,7 +2056,7 @@ function getOpenPullRequests(githubContext, retriesCount) {
                 0} with conflicts] [${((_b = prsByState.nonConflicting) === null || _b === void 0 ? void 0 : _b.length) ||
                 0} without conflicts] [${((_c = prsByState.unknown) === null || _c === void 0 ? void 0 : _c.length) || 0} unknown]`);
             // We need to retry this action because somes PRs are in unknown state that means that mergeability is not calculated yet
-            // (because this state is an async call explained here https://developer.github.com/v3/git/#checking-mergeability-of-pull-requests)
+            // (because this state is an async call as is explained here https://developer.github.com/v3/git/#checking-mergeability-of-pull-requests)
             if (((_d = prsByState.unknown) === null || _d === void 0 ? void 0 : _d.length) > 0 && retriesCount > 0) {
                 yield wait_1.wait(500); // wait some random time giving github time to calculate unknown PRs states
                 return getOpenPullRequests(githubContext, retriesCount - 1);
@@ -2074,52 +2074,69 @@ function hasTag(pr, tag) {
     return pr.labels.map(label => label.id).includes(tag.id);
 }
 exports.hasTag = hasTag;
-function addCommentAndTag(githubContext, prs, generateComment, label) {
-    return __awaiter(this, void 0, void 0, function* () {
-        logger_1.info(`Attempt to tag and comment conflict PRs...`);
-        const repo = githubContext.context.repo.repo;
-        const owner = githubContext.context.repo.owner;
-        try {
-            yield Promise.all(prs.map(pr => githubContext.octokit.issues.createComment({
-                owner,
-                repo,
-                issue_number: pr.number,
-                body: generateComment(pr)
-            })));
-            yield Promise.all(prs.map(pr => githubContext.octokit.issues.addLabels({
-                owner,
-                repo,
-                issue_number: pr.number,
-                labels: [label]
-            })));
-        }
-        catch (err) {
-            logger_1.debug(util_1.inspect(err));
-            throw new Error('Fail to add comments and tags');
-        }
+function addComment(githubContext, pr, comment) {
+    logger_1.debug(`Attempt to add comment ${comment} for PR: ${pr.number}`);
+    const repo = githubContext.context.repo.repo;
+    const owner = githubContext.context.repo.owner;
+    return githubContext.octokit.issues
+        .createComment({
+        owner,
+        repo,
+        issue_number: pr.number,
+        body: comment
+    })
+        .then(res => {
+        logger_1.debug(`Finish add comment ${comment} for PR: ${pr.number}`);
+        return res.data;
+    })
+        .catch(err => {
+        logger_1.debug(`Fail to add comment ${comment} for PR: ${pr.number}`);
+        throw err;
     });
 }
-exports.addCommentAndTag = addCommentAndTag;
-function deleteTags(githubContext, prs, label) {
-    return __awaiter(this, void 0, void 0, function* () {
-        logger_1.info(`Attempt to remove tags from non conflict PRs...`);
-        const repo = githubContext.context.repo.repo;
-        const owner = githubContext.context.repo.owner;
-        try {
-            yield Promise.all(prs.map(pr => githubContext.octokit.issues.removeLabel({
-                owner,
-                repo,
-                issue_number: pr.number,
-                name: label
-            })));
-        }
-        catch (err) {
-            logger_1.debug(util_1.inspect(err));
-            throw new Error('Fail to remove comments and tags');
-        }
+exports.addComment = addComment;
+function addLabel(githubContext, pr, label) {
+    logger_1.debug(`Attempt to add label ${label} for PR: ${pr.number}`);
+    const repo = githubContext.context.repo.repo;
+    const owner = githubContext.context.repo.owner;
+    return githubContext.octokit.issues
+        .addLabels({
+        owner,
+        repo,
+        issue_number: pr.number,
+        labels: [label]
+    })
+        .then(res => {
+        logger_1.debug(`Finish add label ${label} for PR: ${pr.number}`);
+        return res.data;
+    })
+        .catch(err => {
+        logger_1.debug(`Fail to add label ${label} for PR: ${pr.number}`);
+        throw err;
     });
 }
-exports.deleteTags = deleteTags;
+exports.addLabel = addLabel;
+function removeLabel(githubContext, pr, label) {
+    const repo = githubContext.context.repo.repo;
+    const owner = githubContext.context.repo.owner;
+    logger_1.debug(`Attempt to remove label ${label} for PR: ${pr.number}`);
+    return githubContext.octokit.issues
+        .removeLabel({
+        owner,
+        repo,
+        issue_number: pr.number,
+        name: label
+    })
+        .then(res => {
+        logger_1.debug(`Finish removing label ${label} for PR: ${pr.number}`);
+        return res.data;
+    })
+        .catch(err => {
+        logger_1.debug(`Fail to remove label ${label} for PR: ${pr.number}`);
+        throw err;
+    });
+}
+exports.removeLabel = removeLabel;
 
 
 /***/ }),
@@ -3105,6 +3122,7 @@ const contexts_1 = __importDefault(__webpack_require__(726));
 const pull_requests_1 = __webpack_require__(57);
 const tags_1 = __webpack_require__(698);
 const util_1 = __webpack_require__(669);
+const actions_1 = __webpack_require__(645);
 function run() {
     var _a, _b;
     return __awaiter(this, void 0, void 0, function* () {
@@ -3117,8 +3135,17 @@ function run() {
             const nonTaggedPRsWithConflicts = ((_b = openPRs.conflicting) === null || _b === void 0 ? void 0 : _b.filter(pr => !pull_requests_1.hasTag(pr, tag))) || [];
             logger_1.debug(`PRs without conflicts and with conflict tag: ${util_1.inspect(taggedPRsWithoutConflicts)}`);
             logger_1.debug(`PRs with conflicts and without conflict tag: ${util_1.inspect(nonTaggedPRsWithConflicts)}`);
-            yield pull_requests_1.addCommentAndTag(githubContext, nonTaggedPRsWithConflicts, pr => `:boom: Seems like your PR have some merge conflicts @${pr.user.login} :boom:`, tag.name);
-            yield pull_requests_1.deleteTags(githubContext, taggedPRsWithoutConflicts, tag.name);
+            const conflictAction = actions_1.conflictPRs({
+                githubContext,
+                prs: nonTaggedPRsWithConflicts,
+                label: tag.name
+            });
+            const nonConflictAction = actions_1.nonConflictPRs({
+                githubContext,
+                prs: taggedPRsWithoutConflicts,
+                label: tag.name
+            });
+            yield Promise.all([conflictAction, nonConflictAction]);
         }
         catch (err) {
             logger_1.error(err);
@@ -3737,7 +3764,10 @@ exports.GITHUB_MERGE_STATUS = {
     has_hooks: GithubStatusCategories.nonConflicting,
     clean: GithubStatusCategories.nonConflicting
 };
-exports.MAX_NUMBER_PRS_PER_PAGE = 100;
+exports.MAX_NUMBER_ITEMS_PER_PAGE = 100;
+exports.CONFLICT_MEMES_COUNT = 7;
+exports.NON_CONFLICT_MEMES_COUNT = 7;
+exports.MEME_URL = 'https://github.com/picollomartin/conflict-alarm/blob/master/src/images';
 
 
 /***/ }),
@@ -8492,6 +8522,79 @@ module.exports = isPlainObject;
 /***/ (function(module) {
 
 module.exports = require("net");
+
+/***/ }),
+
+/***/ 645:
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
+
+"use strict";
+
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const util_1 = __webpack_require__(669);
+const pull_requests_1 = __webpack_require__(57);
+const logger_1 = __webpack_require__(906);
+const constants_1 = __webpack_require__(211);
+var MemeTypes;
+(function (MemeTypes) {
+    MemeTypes["CONFLICTS"] = "conflicts";
+    MemeTypes["NON_CONFLICTS"] = "non_conflicts";
+})(MemeTypes || (MemeTypes = {}));
+const random = (min, max) => Math.floor(Math.random() * (max - min + 1) + min);
+const getRandomMemeLink = (type) => {
+    logger_1.debug(`Generating meme ${type}...`);
+    const memeCount = type === MemeTypes.CONFLICTS
+        ? constants_1.NON_CONFLICT_MEMES_COUNT
+        : constants_1.CONFLICT_MEMES_COUNT;
+    const randomNumber = random(1, memeCount);
+    const url = `![Meme](${constants_1.MEME_URL}/${type}_${randomNumber}.jpg?raw=true)`;
+    logger_1.debug(`Meme ${type} generated with url ${url}`);
+    return url;
+};
+function nonConflictPRs({ prs, githubContext, label }) {
+    return __awaiter(this, void 0, void 0, function* () {
+        logger_1.info(`Attempt to remove tags from non conflict PRs...`);
+        const commentGenerator = (pr) => `:tada: Seems like your PR is ok now @${pr.user.login} :tada: \n ${getRandomMemeLink(MemeTypes.NON_CONFLICTS)}`;
+        try {
+            yield Promise.all(prs.map(pr => Promise.all([
+                pull_requests_1.removeLabel(githubContext, pr, label),
+                pull_requests_1.addComment(githubContext, pr, commentGenerator(pr))
+            ])));
+        }
+        catch (err) {
+            logger_1.debug(util_1.inspect(err));
+            throw new Error('Fail to remove comments and tags');
+        }
+    });
+}
+exports.nonConflictPRs = nonConflictPRs;
+function conflictPRs({ prs, githubContext, label }) {
+    return __awaiter(this, void 0, void 0, function* () {
+        logger_1.info(`Attempt to tag and comment conflict PRs...`);
+        try {
+            const commentGenerator = (pr) => `:boom: Seems like your PR have some merge conflicts @${pr.user.login} :boom: \n ${getRandomMemeLink(MemeTypes.CONFLICTS)}`;
+            yield Promise.all(prs.map(pr => Promise.all([
+                pull_requests_1.addComment(githubContext, pr, commentGenerator(pr)),
+                pull_requests_1.addLabel(githubContext, pr, label)
+            ])));
+        }
+        catch (err) {
+            logger_1.debug(util_1.inspect(err));
+            throw new Error('Fail to add comments and tags');
+        }
+    });
+}
+exports.conflictPRs = conflictPRs;
+
 
 /***/ }),
 
